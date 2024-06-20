@@ -1,67 +1,78 @@
-from utils import train_actuator_network_and_plot_predictions
+from utils import Train
 from glob import glob
 import os
 import pandas as pd
-
-log_dir_root = "../../../logs/"
-
-#log_dir = "example_experiment/2022/11_01/16_01_50_0"
-log_dir = "example_experiment/ambotv1"
-
-# Evaluates the existing actuator network by default
-# load_pretrained_model = True
-# actuator_network_path = "../../resources/actuator_nets/unitree_go1.pt"
-
-# Uncomment these lines to train a new actuator network
-load_pretrained_model = False
-#actuator_network_path = "../../resources/actuator_nets/unitree_go1_new.pt"
-actuator_network_path = "../../../resources/actuator_nets/actuator.pt"
+import pickle
 
 
-log_dirs = glob(f"{log_dir_root}{log_dir}/", recursive=True)
+class DataProcess():
+    def __init__(self, 
+            raw_filepath=None,
+            start_index =3100, # valid of data row start
+            end_index=8600, # valid of data row end
+            valid_motors=[2,3,4] # valid of data column group
+            ):
+        self.raw_filepath = raw_filepath
+        # checking data file path
+        if os.path.isdir(raw_filepath):
+            self.pd_data = pd.read_csv(os.path.join(raw_filepath,"controlfile_data.csv"), sep="\t",index_col=0, header=0)
+            self.datafile_dir = raw_filepath
+        else:
+            if(os.path.exists(raw_filepath)):
+                self.pd_data = pd.read_csv(os.path.join(raw_filepath), sep="\t",index_col=0, header=0)
+                self.datafile_dir = os.path.dirname(raw_filepath)
+            else:
+                raise "Data file does not exist, please check the data file path!"
 
-if len(log_dirs) == 0: raise FileNotFoundError(f"No log files found in {log_dir_root}{log_dir}/")
-
-def process_actuator_data(raw_filepath):
-    """
-    Process the raw data collected from actuators, and then save them in a log.pkl file
-
-    """
-    pd_data = pd.read_csv(os.path.join(raw_filepath,"controlfile_data.csv"), sep="\t",index_col=0, header=0)
-
-    processed_data =[] 
-    start_index = 3100
-    end_index = 8600
-    joint_indexs = [2, 3, 4, 5,  6, 7, 8, 9,  10, 11, 12, 13] # 12 joints
-    for step_idx in range(start_index, pd_data.shape[0]-start_index):
-        processed_data.append({
-        "joint_pos_target":[pd_data["jcm_"+str(joint_idx)][step_idx] for joint_idx in joint_indexs],
-        "joint_pos":[pd_data["jointPosition_"+str(joint_idx)][step_idx] for joint_idx in joint_indexs],
-        "joint_vel":[pd_data["jointVelocity_"+str(joint_idx)][step_idx] for joint_idx in joint_indexs],
-        "torques":[(pd_data["jointCurrent_"+str(joint_idx)][step_idx]*0.001)*0.86134+0.65971 for joint_idx in joint_indexs],
-        "tau_est":[(pd_data["jointCurrent_"+str(joint_idx)][step_idx]*0.001)*0.86134+0.65971 for joint_idx in joint_indexs], #mA to A, to Nm
-        #"tau_est":[0.0 for joint_idx in joint_indexs],
-        })
-
-    result_datas = {'hardware_closed_loop':[0,processed_data]}
-
-    import pickle
-
-    with open(os.path.join(raw_filepath,'log.pkl'), 'wb') as handle:
-        pickle.dump(result_datas, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    print("Process ambot motor data, data file saved at: {:}".format(os.path.join(raw_filepath,'log.pkl')))
+        self.data_row_num = self.pd_data.shape[0]
+        self.start_index = start_index
+        self.end_index = end_index
+        self.valid_motors = valid_motors
 
 
+    def process_data(self):
+        """
+        Process data
+        """
+        processed_data =[] 
+        for step_idx in range(self.start_index, min(self.data_row_num,self.end_index) - self.start_index):
+            processed_data.append({
+            "motor_pos_target":[self.pd_data["jcm_"+str(joint_idx)][step_idx] for joint_idx in self.valid_motors],
+            "motor_pos":[self.pd_data["jointPosition_"+str(joint_idx)][step_idx] for joint_idx in self.valid_motors],
+            "motor_vel":[self.pd_data["jointVelocity_"+str(joint_idx)][step_idx] for joint_idx in self.valid_motors],
+            "motor_tor":[(self.pd_data["jointCurrent_"+str(joint_idx)][step_idx]*0.001)*0.86134+0.65971 for joint_idx in self.valid_motors],
+            #"torques":[(pd_data["jointCurrent_"+str(joint_idx)][step_idx]*0.001)*0.86134+0.65971 for joint_idx in valid_motors],
+            #"tau_est":[(pd_data["jointCurrent_"+str(joint_idx)][step_idx]*0.001)*0.86134+0.65971 for joint_idx in valid_motors], #mA to A, to Nm
+            #"tau_est":[0.0 for joint_idx in valid_motors],
+            })
 
-process_actuator_data(log_dirs[0])
+        result_datas = {'motor_data':[processed_data]}
 
-for log_dir in log_dirs:
-    try:
-        train_actuator_network_and_plot_predictions(log_dir[:11], log_dir[11:], actuator_network_path=actuator_network_path, load_pretrained_model=load_pretrained_model)
-    except FileNotFoundError:
-        print(f"Couldn't find log.pkl in {log_dir}")
-    except EOFError:
-        print(f"Incomplete log.pkl in {log_dir}")
+        with open(os.path.join(self.datafile_dir,'motor_data.pkl'), 'wb') as f:
+            pickle.dump(result_datas, f, protocol=pickle.HIGHEST_PROTOCOL)
 
+        print("Process ambot motor data, data file saved at: {:}".format(os.path.join(self.datafile_dir,'motor_data.pkl')))
+
+
+
+
+
+if __name__=="__main__":
+    load_pretrained_model = True
+    datafile_dir = "./app/"
+    dp = DataProcess(datafile_dir,
+                    start_index=3000,
+                    end_index=10000,
+                    valid_motors=[2,3,4]
+                    )
+    dp.process_data()
+    training = Train(
+            motor_num=3,
+            data_sample_freq=100,
+            datafile_dir = datafile_dir,
+            load_pretrained_model = load_pretrained_model
+            )
+    training.load_data()
+    training.training_model()
+    training.eval_model()
 
