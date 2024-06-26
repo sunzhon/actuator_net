@@ -70,7 +70,8 @@ class Train():
             data_sample_freq=100,
             datafile_dir=None,
             load_pretrained_model=False,
-            device="cpu"
+            device="cpu",
+            **kwargs
             ):
         self.motor_num = motor_num
         self.data_sample_freq = data_sample_freq
@@ -81,7 +82,15 @@ class Train():
         self.load_pretrained_model = load_pretrained_model
         self.actuator_network_path = os.path.join(datafile_dir,"actuator.pt")
         self.device=device
+        if("epochs" in kwargs.keys()):
+            self.epochs = kwargs["epochs"]
+        else:
+            self.epochs = 1000
 
+        if "display_motor_idx" in kwargs.keys():
+            self.display_motor_idx = kwargs["display_motor_idx"]
+        else:
+            self.display_motor_idx = 0
 
 
     def build_mlp(self, in_dim, units, layers, out_dim,
@@ -96,7 +105,7 @@ class Train():
             mods += [nn.LayerNorm(out_dim)]
         return nn.Sequential(*mods)
 
-    def train_actuator_network(self,epochs=100):
+    def train_actuator_network(self):
         """
         Train actuator model
         """
@@ -116,10 +125,8 @@ class Train():
         lr = 8e-4
         opt = Adam(model.parameters(), lr=lr, eps=1e-8, weight_decay=0.0)
     
-        epochs = epochs
-    
         model = model.to(self.device)
-        for epoch in range(epochs):
+        for epoch in range(self.epochs):
             epoch_loss = 0
             ct = 0
             for batch in train_loader:
@@ -236,7 +243,7 @@ class Train():
         if self.load_pretrained_model:
             self.model = torch.jit.load(self.actuator_network_path).to(self.device)
         else:
-            self.model = self.train_actuator_network(epochs=1000).to(self.device)
+            self.model = self.train_actuator_network().to(self.device)
     
     
     
@@ -247,14 +254,15 @@ class Train():
         """
     
         tau_preds = self.model(self.xs).detach().reshape(self.motor_num, -1).T
-    
-        import matplotlib.pyplot as plt
         # plot training  results
         plot_length = 500
-        timesteps = self.timesteps[:plot_length]
-        torques = self.ys[:plot_length]
-        tau_preds = tau_preds[:plot_length]
+        self.time = self.timesteps[:plot_length]
+        self.actual = self.ys[:plot_length, self.display_motor_idx]
+        self.prediction = tau_preds[:plot_length, self.display_motor_idx]
+
+        """
     
+        import matplotlib.pyplot as plt
         fig, axs = plt.subplots(2,1, figsize=(6, 4))
         axs = np.array(axs).flatten()
         #for i in range(self.motor_num):
@@ -266,5 +274,23 @@ class Train():
             axs[i].grid()
         plt.legend()
         plt.show()
+        """
         #plt.savefig("esti.png")
-    
+
+
+
+if __name__=="__main__":
+    kwargs={"epochs":100}
+    datafile_dir =  "./app/"
+    training = Train(
+            motor_num=12,
+            data_sample_freq=100,
+            datafile_dir = datafile_dir,
+            load_pretrained_model = False,
+            **kwargs
+            )
+
+    training.load_data()
+    training.training_model()
+    training.eval_model()
+

@@ -15,6 +15,7 @@ class QTableViewPanel(QDialog):
         self.users_data = users_data["data"]
         self.row_num = users_data["row_num"]
         self.display_row_num = users_data["display_row_num"]
+        print(users_data["data"][0])
 
         self.init_ui()
         self.main()
@@ -116,9 +117,9 @@ class QTableViewPanel(QDialog):
         self.table_view.setShowGrid(True)
 
     def set_component(self):
-        self.btn_close = QPushButton("关闭")
+        #self.btn_close = QPushButton("关闭")
 
-        self.btn_close.clicked.connect(self.close_window)  # 连接槽函数
+        #self.btn_close.clicked.connect(self.close_window)  # 连接槽函数
 
         self.label1 = QLabel("当前共:")
         self.label_users_num = QLabel(str(self.row_num))
@@ -130,7 +131,7 @@ class QTableViewPanel(QDialog):
 
         self.label1.setFixedWidth(42)
         self.label_users_num.setFixedWidth(100)
-        self.btn_close.setFixedSize(80, 32)
+        #self.btn_close.setFixedSize(80, 32)
         self.copy_tips1.setFixedWidth(170)
 
     def set_panel_layout(self):
@@ -147,7 +148,7 @@ class QTableViewPanel(QDialog):
         h_layout2.addWidget(self.label_users_num)
         h_layout2.addWidget(self.label3)
 
-        h_layout2.addWidget(self.btn_close)
+        #h_layout2.addWidget(self.btn_close)
 
         v_layout.addLayout(h_layout1)
         v_layout.addLayout(h_layout2)
@@ -164,13 +165,18 @@ class QTableViewPanel(QDialog):
 
 
 if __name__ == '__main__':
-    user_data = [
-        ["01", "小明", "幸福路1号", "13100000000", 'test1@qq.com', '活泼好动，喜欢唱歌。'],
+    user_data = {"data":[
+        ["01", "小明", "幸福路1号", "0.1", 'test1@qq.com', '活泼好动，喜欢唱歌。'],
         ["02", "小红", "点击此处的内容将使用提示显示全部信息", "13100000001", 'test2@qq.com', '乐观开朗，乐于助人。'],
         ["03", "小蓝", "幸福路3号", "13100000002", 'test3@qq.com', '这里也是超出显示的内容：此人较懒，未填简介。'],
         ["04", "小黑", "幸福路4号", "13100000003", 'test4@qq.com', '沉默寡言，爱敲代码。'],
         ["05", "小白", "幸福路5号", "13100000004", 'test5@qq.com', '积极向上，喜欢发呆。']
-    ]
+    ],
+    "column_name": ["id",'name','address','number','email','attr'],
+    'row_num':5,
+    'display_row_num':5
+    
+    }
     app = QApplication(sys.argv)
     tp = QTableViewPanel(user_data)
     tp.show()
