@@ -4,8 +4,8 @@ from PyQt5.QtWidgets import QVBoxLayout, QFileDialog, QMainWindow, QTextBrowser,
 #from mainwindow import Ui_MainWindow
 from PyQt5.QtGui import QIcon
 sys.path.append(os.path.dirname(sys.path[0]))
-from train import DataProcess
-from utils import Train
+from data_loader import DataProcess
+from train import Train
 import warnings
 from tableview import QTableViewPanel
 import sys
@@ -37,9 +37,12 @@ class MyWindow(QMainWindow):
         self.data_end=10000
         self.load_pretrained_model= False
 
+        self.model_input = ["jcm", "jointPosition", "jointVelocity"]
+        self.model_output = ["jointCurrent"]
+
         # 创建窗口
         self.resize(1200,1000)
-        self.setWindowTitle("电机辨识器")
+        self.setWindowTitle("Actuator Identification")
         #self.setWindowIcon(QIcon('panda.png'))
         center_pointer = QDesktopWidget().availableGeometry().center()
         x,y=center_pointer.x(), center_pointer.y()
@@ -185,6 +188,7 @@ class MyWindow(QMainWindow):
                 btn_box_height)
         self.lineEdit.setObjectName("lineEdit")
         self.lineEdit.textChanged.connect(self.slot_set_epochs_num)
+
         # options 2
         label = QLabel("电机序号",parent=self)
         label.setGeometry(
@@ -192,7 +196,7 @@ class MyWindow(QMainWindow):
                 btn_base_height*7,
                 btn_box_width,
                 btn_box_height)
-        self.lineEdit = QLineEdit("2,3,5,6,7,9,10,11,13,14,15,17",parent=self)
+        self.lineEdit = QLineEdit(",".join([str(idx) for idx in self.motors]),parent=self)
         self.lineEdit.setGeometry(
                 btn_base_width+220,
                 btn_base_height*8,
@@ -235,6 +239,40 @@ class MyWindow(QMainWindow):
         self.combobox.currentTextChanged.connect(self.slot_text_changed)
 
 
+
+        # options 4
+        label = QLabel("Model input",parent=self)
+        label.setGeometry(
+                btn_base_width,
+                btn_base_height*11,
+                btn_box_width,
+                btn_box_height)
+        self.modelInputLineEdit = QLineEdit(",".join(self.model_input),parent=self)
+        self.modelInputLineEdit.setGeometry(
+                btn_base_width,
+                btn_base_height*12,
+                btn_box_width,
+                btn_box_height)
+        self.modelInputLineEdit.setObjectName("lineEdit")
+        self.modelInputLineEdit.textChanged.connect(self.slot_set_model_input)
+
+        # options 5
+        label = QLabel("Model output",parent=self)
+        label.setGeometry(
+                btn_base_width+220,
+                btn_base_height*11,
+                btn_box_width,
+                btn_box_height)
+        self.modelOutputLineEdit = QLineEdit(",".join(self.model_output),parent=self)
+        self.modelOutputLineEdit.setGeometry(
+                btn_base_width+220,
+                btn_base_height*12,
+                btn_box_width,
+                btn_box_height)
+        self.modelOutputLineEdit.setObjectName("lineEdit")
+        self.modelOutputLineEdit.textChanged.connect(self.slot_set_model_output)
+
+
         # btn 3
         self.btn_trainModel= QPushButton(self)
         self.btn_trainModel.setObjectName("btn_trainModel")  
@@ -243,7 +281,7 @@ class MyWindow(QMainWindow):
         self.btn_trainModel.setStatusTip("点击此按钮将开始训练模型！")
         self.btn_trainModel.setGeometry(
                 btn_base_width,
-                btn_base_height*11,
+                btn_base_height*13,
                 btn_box_width,
                 btn_box_height)
         self.btn_trainModel.clicked.connect(self.slot_btn_trainModel)
@@ -257,7 +295,7 @@ class MyWindow(QMainWindow):
         self.btn_showResult.setStatusTip("点击此按钮显示预测结果！")
         self.btn_showResult.setGeometry(
                 btn_base_width+220,
-                btn_base_height*11,
+                btn_base_height*13,
                 btn_box_width,
                 btn_box_height)
         self.btn_showResult.clicked.connect(self.slot_btn_showResult)
@@ -331,6 +369,8 @@ class MyWindow(QMainWindow):
                 data_start=self.data_start,
                 data_end=self.data_end,
                 motors=self.motors,
+                input_data_name=self.model_input,
+                output_data_name=self.model_output
                 )
         self.dp_worker.signal.connect(self.thread_dp)
         self.dp_worker.start()
@@ -427,6 +467,9 @@ class MyWindow(QMainWindow):
 
     def slot_clear_plot_data(self):
         self.pw1.clear()
+        self.pw1.enableAutoRange(axis='x')
+        self.pw1.enableAutoRange(axis='y')
+        self.pw1.setAutoVisible(y=True)
 
 
     def draw1(self):
@@ -493,6 +536,14 @@ class MyWindow(QMainWindow):
                 warnings.warn("there is no dataset!")
 
 
+    def slot_set_model_input(self,text):
+        self.model_input = [int(idx) for idx in text.split(",")]
+        self.text_browser.append("Model input:{:}".format(text))
+
+    def slot_set_model_output(self,text):
+        self.model_output = [int(idx) for idx in text.split(",")]
+        self.text_browser.append("Model output:{:}".format(text))
+
 
     def slot_btn_showResult(self):
         r_symbol = random.choice(['o', 's', 't', 't1', 't2', 't3', 'd', '+', 'x', 'p', 'h', 'star'])
@@ -549,13 +600,16 @@ class QProcessData(QThread):
             data_start=1000, 
             data_end=5000, 
             motors=[2,3,5, 6,7,9, 10,11,13, 14,15,17],
-            parent=None):
+            parent=None,
+            **kwargs
+            ):
         super(QProcessData,self).__init__(parent)
 
         self.dp = DataProcess(datafile_dir,
                     data_start=data_start,
                     data_end=data_end,
-                    motors=motors
+                    motors=motors,
+                    **kwargs
                     )
         self.data_start = data_start
         self.data_end = data_end
