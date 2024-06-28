@@ -53,7 +53,7 @@ class MyWindow(QMainWindow):
         self.text_browser = QTextBrowser(self)
         self.text_browser.setText("Have a nice day!")
         self.text_browser.setPlaceholderText("Please add some here")
-        self.text_browser.textChanged.connect(lambda:print("it is changed"))
+        #self.text_browser.textChanged.connect(lambda:print("it is changed"))
         self.text_browser.setGeometry(10,800,1180,160)
 
         btn_base_width=730

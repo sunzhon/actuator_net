@@ -13,6 +13,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import r2_score
+
 from torch.optim import Adam
 
 class ActuatorDataset(Dataset):
@@ -122,7 +125,10 @@ class Train():
         valid_loader = DataLoader(val_set, batch_size=128, shuffle=False)
         self.test_loader = DataLoader(self.test_set, batch_size=1, shuffle=False)
     
-        model = self.build_mlp(in_dim=self.xs.shape[1], units=100, layers=4, out_dim=self.ys.shape[1], act='softsign')
+        model = self.build_mlp(in_dim=self.xs.shape[1], 
+                units=100, layers=4, 
+                out_dim=1 if len(self.ys.shape)<2 else self.ys.shape[1], 
+                act='softsign')
     
         lr = 8e-4
         opt = Adam(model.parameters(), lr=lr, eps=1e-8, weight_decay=0.0)
@@ -185,13 +191,23 @@ class Train():
         else:
             print(data_path)
             warnings.warn("Data file path  not exists")
-        with open(data_path, 'rb') as file:
-            rawdata = pkl.load(file)
+        with open(data_path, 'rb') as fd:
+            rawdata = pkl.load(fd)
+
     
         self.xs = torch.tensor(rawdata["input_data"],dtype=torch.float).to(self.device)
         self.ys = torch.tensor(rawdata["output_data"],dtype=torch.float).to(self.device)
         self.timesteps = np.array(range(self.xs.shape[0])) / self.data_sample_freq
 
+        # load scaler, for testing and evaluation
+        scaler_file = os.path.join(self.datafile_dir, "scaler.pkl")
+        if(os.path.exists(scaler_file)):
+            print("data scaler file:", scaler_file)
+        else:
+            print("{:} does not exist".format(scaler_file))
+            exit()
+        with open(scaler_file,"rb") as fd:
+            self.scaler = pkl.load(fd)
 
     
     def training_model(self):
@@ -215,40 +231,38 @@ class Train():
         """
     
         plot_length = 450
+        model_input = []
         prediction = []
         actual = []
 
         with torch.no_grad():
             for batch in self.test_loader:
-                pred = self.model(batch["motor_states"]).detach()
+                x = batch["motor_states"]
+                pred = self.model(x).detach()
+                model_input.append(x)
                 prediction.append(pred)
                 actual.append(batch["motor_outputs"].detach())
 
         self.time = self.timesteps[:plot_length]
-        self.actual = torch.tensor(actual)[:plot_length]
-        self.prediction = torch.tensor(prediction)[:plot_length]
+        self.scaled_actual = torch.tensor(actual).unsqueeze(-1).cpu().detach().numpy()[:plot_length,:]
+        self.scaled_prediction = torch.tensor(prediction).unsqueeze(-1).cpu().detach().numpy()[:plot_length,:]
+        self.scaled_model_input = torch.concat(model_input,dim=0).cpu().detach().numpy()[:plot_length,:]
 
-    
 
-        """
-        fig, axs = plt.subplots(1,1, figsize=(6, 4))
-        axs = np.array(axs).flatten()
-        #for i in range(self.motor_num):
-        for i in range(2):
-            axs[i].plot(timesteps, self.motor_torques[:plot_length, i], label="true torque")
-            axs[i].plot(timesteps, tau_preds[:, i], linestyle='--', label="predicted torque")
-            axs[i].set_xlabel("Time [s]")
-            axs[i].set_ylabel("Torque [Nm]")
-            axs[i].grid()
-        plt.legend()
-        plt.show()
-        """
+
+        self.actual = self.scaler.inverse_transform(np.concatenate([self.scaled_model_input,self.scaled_actual],axis=1))[:,-1]
+        self.prediction = self.scaler.inverse_transform(np.concatenate([self.scaled_model_input,self.scaled_prediction],axis=1))[:,-1]
+        self.model_input = self.scaler.inverse_transform(np.concatenate([self.scaled_model_input,self.scaled_prediction],axis=1))[:,:-1]
+
+        mae=r2_score(self.scaled_actual,self.scaled_prediction)
+        print("test mae:", mae)
+
         #plt.savefig("esti.png")
 
 
 
 if __name__=="__main__":
-    kwargs={"epochs":1, "device":"cuda:0"}
+    kwargs={"epochs":1000, "device":"cuda:0"}
     datafile_dir =  "./app/"
     training = Train(
             motor_num=12,
