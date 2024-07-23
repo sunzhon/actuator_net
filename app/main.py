@@ -236,7 +236,7 @@ class MyWindow(QMainWindow):
                 btn_base_height*10,
                 btn_box_width,
                 btn_box_height)
-        self.combobox.currentTextChanged.connect(self.slot_text_changed)
+        self.combobox.currentTextChanged.connect(self.slot_load_model)
 
 
 
@@ -463,6 +463,7 @@ class MyWindow(QMainWindow):
         #self.pw1.plot(x, y,  symbol=r_symbol, symbolBrush=r_color) #如果不设后面参数则显示点的形状为正常点
         #self.pw1.plot(x, y, name=self.plot_data_name,symbol=r_symbol, symbolBrush=r_color) #如果不设后面参数则显示点的形状为正常点
         self.pw1.showGrid(x=True, y=True, alpha=0.3)
+        self.text_browser.append("Plot data!")
 
 
     def slot_clear_plot_data(self):
@@ -470,6 +471,7 @@ class MyWindow(QMainWindow):
         self.pw1.enableAutoRange(axis='x')
         self.pw1.enableAutoRange(axis='y')
         self.pw1.setAutoVisible(y=True)
+        self.text_browser.append("Clear data!")
 
 
     def draw1(self):
@@ -518,7 +520,7 @@ class MyWindow(QMainWindow):
         self.text_browser.append("数据终点:{:}".format(text))
 
 
-    def slot_text_changed(self,text):
+    def slot_load_model(self,text):
         self.load_pretrained_model = True if text=="True" else False
         self.text_browser.append("是否加载已经训练的模型:{:}".format(text))
         print(self.load_pretrained_model)
@@ -534,6 +536,7 @@ class MyWindow(QMainWindow):
                     )
             else:
                 warnings.warn("there is no dataset!")
+        self.text_browser.append("Loading existing model")
 
 
     def slot_set_model_input(self,text):
@@ -555,9 +558,10 @@ class MyWindow(QMainWindow):
         prediction = self.train_worker.training.prediction
 
         self.pw1.addLegend()
-        self.pw1.plot(x, actual, name="Actual", pen=pg.mkPen(color=r_color,width=3), symbol="o", symbolBrush="r")
-        self.pw1.plot(x, prediction, name="Prediction", pen=pg.mkPen(color=r_color,width=3), symbol="s", symbolBrush="b")
+        self.pw1.plot(x, actual, name="Actual", pen=pg.mkPen(color='r',width=3), symbol="o", symbolBrush="r")
+        self.pw1.plot(x, prediction, name="Prediction", pen=pg.mkPen(color='b',width=3), symbol="s", symbolBrush="b")
         self.pw1.showGrid(x=True, y=True, alpha=0.3)
+        self.text_browser.append("Plot prediction results!")
 
 
 
